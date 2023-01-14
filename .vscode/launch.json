@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "-wC:/Users/user/OneDrive/Documents/University/Econometrics and Operations Research/thesis_andre lucas/gender_discrimination",
+                "-cceo_official_dataset.csv"
+            ]
+        }
+    ]
+}
