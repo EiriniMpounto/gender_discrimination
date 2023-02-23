@@ -20,7 +20,6 @@ library(plm)
 library(AER)
 library(urca)
 library(vars)
-library(vars)
 library(MASS)
 
 library(knitr)
@@ -58,9 +57,10 @@ library(ggplot2)
 
 
 
+
 # 3.  SET WORKING DIRECTORY ####
 
-setwd('~/University/Econometrics and Operations Research/thesis_andre lucas/gender_discrimination_analysis')
+setwd('~/University/Econometrics and Operations Research/thesis_andre lucas/gender_discrimination')
 
 # 4.  READ EXCEL FILE ####
 
@@ -79,62 +79,54 @@ str(data)
 to rename variables, to correct the data types and to handle all the missing 
 values'
 
+# re-code the SPCODE variable in order to have two groups from the current 4
+data$SPCODE_new[data$SPCODE == 'SP'] <- 'SP_index'
+data$SPCODE_new[data$SPCODE == 'MD'] <- 'non_SP'
+data$SPCODE_new[data$SPCODE == 'SM'] <- 'non_SP'
+data$SPCODE_new[data$SPCODE == 'EX'] <- 'non_SP'
+
+
+# replace the NA values as well in order to have only 2 dummies
+data$SPCODE_new[is.na(data$SPCODE_new)] = 'non_SP'
+
+
+
 
 # create dummies
 data <- dummy_cols(data, select_columns = 'GENDER')
-data <- dummy_cols(data, select_columns = 'SPCODE')
+data <- dummy_cols(data, select_columns = 'SPCODE_new')
 #print(data)
 
 
 # creating another subset with the CEOS from the general data set
-ceo_data <- data[data$CEO_NEW == 'CEO', c('YEAR', 'TRS1YR','ROA','AGE','PRCC',
-                                          'GENDER_FEMALE','GENDER_MALE','TDC2',
-                                          'LAG_TRS1YR','CO_PER_ROL','SPCODE_EX',
-                                          'SPCODE_MD','SPCODE_SM','SPCODE_SP',
-                                          'SPINDEX')]
-
-
+ceo_data <- data[data$CEO_NEW == 'CEO', c('YEAR','TRS1YR','ROA','AGE',
+                                          'MKTVAL', 'PRCC', 'GENDER_FEMALE',
+                                          'GENDER_MALE','LAG_TRS1YR',
+                                          'CO_PER_ROL','SPCODE_new','SPINDEX',
+                                          'SPCODE_new_non_SP', 
+                                          'SPCODE_new_SP_index' )]
+                                          
+                                        
+                                         
 
 # creating another subset for the CFOS from the general data set
-cfo_data <- data[data$CFO_NEW == 'CFO', c('YEAR', 'TRS1YR','ROA','AGE','PRCC',
-                                          'GENDER_FEMALE','GENDER_MALE','TDC2',
-                                          'LAG_TRS1YR','CO_PER_ROL','SPCODE_EX',
-                                          'SPCODE_MD','SPCODE_SM','SPCODE_SP',
-                                          'SPINDEX')]
+cfo_data <- data[data$CFO_NEW == 'CFO', c('YEAR','TRS1YR','ROA','AGE',
+                                          'MKTVAL','PRCC', 'GENDER_FEMALE',
+                                          'GENDER_MALE', 'LAG_TRS1YR',
+                                          'CO_PER_ROL','SPCODE_new','SPINDEX',
+                                          'SPCODE_new_non_SP', 
+                                          'SPCODE_new_SP_index' )]
+                            
 
 
 
 # creating a data set for both the CEO and the CFO combined
 ceo_cfo_data <- data[data$CEO_NEW == 'CEO' | data$CFO_NEW == 'CFO', 
-                     c('YEAR', 'TRS1YR','ROA','AGE','PRCC',
-                       'GENDER_FEMALE','GENDER_MALE','TDC2',
-                       'LAG_TRS1YR','CO_PER_ROL','SPCODE_EX',
-                       'SPCODE_MD','SPCODE_SM','SPCODE_SP',
-                       'SPINDEX')]
-
-
-
-                                         
-                                                             
-                                                             
-                                                             
-
-
-
-# bind the spcode data for both the data and the ceo_data
-spcode<- cbind(data$SPCODE_EX, data$SPCODE_MD, data$SPCODE_SM, 
-               data$SPCODE_SP)
-
-spcode_ceo <- cbind(ceo_data$SPCODE_EX, ceo_data$SPCODE_SM, 
-                    ceo_data$SPCODE_MD)
-
-spcode_cfo <- cbind(cfo_data$SPCODE_EX, cfo_data$SPCODE_SM, 
-                    cfo_data$SPCODE_MD)
-
-spcode_ceo_cfo <- cbind(ceo_cfo_data$SPCODE_EX, ceo_cfo_data$SPCODE_SM, 
-                        ceo_cfo_data$SPCODE_MD)
-
-
+                     c('YEAR', 'TRS1YR','ROA','AGE','MKTVAL','PRCC',
+                       'GENDER_FEMALE','GENDER_MALE', 'LAG_TRS1YR','CO_PER_ROL',
+                       'SPCODE_new','SPINDEX','SPCODE_new_non_SP', 
+                       'SPCODE_new_SP_index' )]
+                                                 
 
 # declaring the new subset as a data frame
 ceo_data <- data.frame(ceo_data)
@@ -152,19 +144,15 @@ names(which(colSums(is.na(ceo_cfo_data))>0))
 
 # replace all the Nan values with 0
 ceo_data[is.na(ceo_data)] = 0
+cfo_data[is.na(cfo_data)] = 0
+ceo_cfo_data[is.na(ceo_cfo_data)] = 0
 
 
-ceo_cfo_data %>% 
-  replace(.== 'NULL', 0) 
-
-
-cfo_data %>% 
-  replace(.== 'NULL', 0) 
 
 # recheck which columns contain Nan values
 names(which(colSums(is.na(ceo_data))>0))
-
-
+names(which(colSums(is.na(cfo_data))>0))
+names(which(colSums(is.na(ceo_cfo_data))>0))
 
 
 
@@ -177,21 +165,39 @@ investiation, regarding the diagnostic checks that are going to follow. '
 
 
 # MODEL OF THE CEO DATA SET
-lm_ceo <- lm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + 
-                       LAG_TRS1YR + spcode_ceo + TDC2, data = ceo_data)
+lm_ceo <- lm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR +
+               SPCODE_new_SP_index, data = ceo_data)
 summary(lm_ceo)
+
+# alternative model with the female variable as independent
+lm_ceo_f <- lm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_FEMALE + LAG_TRS1YR +
+               SPCODE_new_SP_index, data = ceo_data)
+summary(lm_ceo_f)
+
 
 
 # MODEL FOR THE CFO DATA SET
-lm_cfo <- lm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + 
-                       LAG_TRS1YR + spcode_cfo + TDC2, data = cfo_data)
+lm_cfo <- lm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR + 
+               SPCODE_new_SP_index, data = cfo_data)
 summary(lm_cfo)
+
+# alternative model with the female dummy as independent
+lm_cfo_f <- lm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_FEMALE + LAG_TRS1YR + 
+               SPCODE_new_SP_index, data = cfo_data)
+summary(lm_cfo_f)
+
+
 
 
 # MODEL FOR CFO AND CEO COMBINED
-lm_ceo_cfo <- lm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + 
-                      LAG_TRS1YR + spcode_ceo_cfo + TDC2, data = ceo_cfo_data)
+lm_ceo_cfo <- lm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR + 
+                   SPCODE_new_SP_index, data = ceo_cfo_data)
 summary(lm_ceo_cfo)
+
+# ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+lm_ceo_cfo_f <- lm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_FEMALE + LAG_TRS1YR + 
+                   SPCODE_new_SP_index, data = ceo_cfo_data)
+summary(lm_ceo_cfo_f)
  
 
 'But the mothod above ignores the panel structure, it is a simple OLS, 
@@ -200,25 +206,48 @@ structure into account.'
 
 
 
-'OLS WITH PANEL STRUCTURE INTO ACCOUNT'
-
+# OLS WITH PANEL STRUCTURE INTO ACCOUNT #####
 
 
 # MODEL FOR THE CEO DATA
-plm_ceo <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + 
-                  LAG_TRS1YR + spcode_ceo + TDC2, data = ceo_data, 
+plm_ceo <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR +
+                 SPCODE_new_SP_index, data = ceo_data, 
                  index = c('YEAR', 'CO_PER_ROL'))
 summary(plm_ceo)
 
+# ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+plm_ceo_F<- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_FEMALE + LAG_TRS1YR +
+                 SPCODE_new_SP_index, data = ceo_data, 
+               index = c('YEAR', 'CO_PER_ROL'))
+summary(plm_ceo_F)
+
+
 
 # MODEL FOR THE CFO DATA
-plm_cfo <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + 
-                   LAG_TRS1YR + spcode_cfo + TDC2, data = cfo_data, 
-                 index = c('YEAR', 'CO_PER_ROL'))
+plm_cfo <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR +
+                 SPCODE_new_SP_index, data = cfo_data, 
+                 index = c('YEAR','CO_PER_ROL'))
 summary(plm_cfo)
 
+#ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+plm_cfo_F <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_FEMALE + LAG_TRS1YR +
+                 SPCODE_new_SP_index, data = cfo_data, 
+               index = c('YEAR','CO_PER_ROL'))
+summary(plm_cfo_F)
 
 
+# MODEL FOR THE CEO & CFO DATA COMBINED
+
+plm_ceo_cfo <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR +
+                     SPCODE_new_SP_index, data = ceo_cfo_data, 
+                   index = c('YEAR','CO_PER_ROL'))
+summary(plm_ceo_cfo)
+
+# ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+plm_ceo_cfo_F <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_FEMALE + LAG_TRS1YR +
+                     SPCODE_new_SP_index, data = ceo_cfo_data, 
+                   index = c('YEAR','CO_PER_ROL'))
+summary(plm_ceo_cfo_F)
 
 
 
@@ -242,11 +271,11 @@ H1: Residuals are distributed with unequal variance
 
 
 # test heteroskedactisity in the CEO data set 
-lmtest::bgtest(model_ceo)
+lmtest::bgtest(lm_ceo)
 
 
 # test heteroskedactisity in the CFO data set 
-lmtest::bgtest(model_cfo)
+lmtest::bgtest(lm_cfo)
 
 
 
@@ -266,12 +295,12 @@ conducted with two ways.'
 'CONDUCTING THE AUTOCORRELATION TEST WITH THE DURBIN WATSON TEST'
 
 # Durbin Watson for the CEO data set
-lmtest::dwtest(model_ceo)
+lmtest::dwtest(lm_ceo)
 
 
 
 #Durbin Watson test for the CFO data set
-lmtest::dwtest(model_cfo)
+lmtest::dwtest(lm_cfo)
 
 
 
@@ -306,12 +335,12 @@ H1: The variable is not normally distributed'
 
 
 # linearity test on the CEO data set
-l_test_model_ceo <- studres(model_ceo)
+l_test_model_ceo <- studres(lm_ceo)
 shapiro.test(l_test_model_ceo[0:5000])
 
 
 # linearity test on the CFO model
-l_test_model_cfo <- studres(model_cfo)
+l_test_model_cfo <- studres(lm_cfo)
 shapiro.test(l_test_model_cfo[0:5000])
 
 
@@ -350,9 +379,6 @@ kpss.test(ceo_data$ROA, null = c('Level'), lshort=TRUE)
 kpss.test(ceo_data$LAG_TRS1YR, null = c('Level'), lshort=TRUE)
 # PRCC variable
 kpss.test(ceo_data$PRCC, null = c('Level'), lshort=TRUE)
-#TDC2 variable
-kpss.test(ceo_data$TDC2, null = c('Level'), lshort=TRUE)
-
 
 
 
@@ -368,14 +394,6 @@ kpss.test(cfo_data$ROA, null = c('Level'), lshort=TRUE)
 kpss.test(cfo_data$LAG_TRS1YR, null = c('Level'), lshort=TRUE)
 # PRCC variable
 kpss.test(cfo_data$PRCC, null = c('Level'), lshort=TRUE)
-#TDC2 variable
-kpss.test(cfo_data$TDC2, null = c('Level'), lshort=TRUE)
-
-
-
-
-
-
 
 
 
@@ -419,39 +437,39 @@ which reveals the time series model.'
 'CONDUCT THE FIXED EFFECT AND RANDOM EFFECT MODEL FOR THE CEO DATA '
 
 # fixed effect model CEO data set
-fe_model_ceo <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + LAG_TRS1YR + 
-                         TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, 
-                         model = 'within', data = ceo_data,
-                         index = c('YEAR', 'CO_PER_ROL'))
-
+fe_model_ceo <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR +
+                      SPCODE_new_SP_index, model = 'within', data = ceo_data,
+                      index = c('YEAR', 'CO_PER_ROL'))
+                      
+ 
 # random effect model
-re_model_ceo <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + LAG_TRS1YR + 
-                         TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, 
-                         model = 'random', random.method = 'nerlove', 
-                         data = ceo_data, index = c('YEAR', 'CO_PER_ROL'))
+re_model_ceo <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR + 
+                      SPCODE_new_SP_index, model = 'random',
+                    random.method = 'nerlove', data = ceo_data,
+                    index = c('YEAR', 'CO_PER_ROL'))
+                      
 
+                  
 
 'CONDUCT THE FIXED AND RANDOM EFFECT MODEL FOR THE CFO DATA'
 
 # fixed effect model
-fe_model_cfo <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + LAG_TRS1YR + 
-                           TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, 
-                         model = 'within', data = cfo_data,
-                         index = c('YEAR', 'CO_PER_ROL'))
+fe_model_cfo <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR + 
+                      SPCODE_new_SP_index, model = 'within', 
+                    data = cfo_data, index = c('YEAR', 'CO_PER_ROL'))
+                      
+                        
 
 #random effect model
-re_model_cfo <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + LAG_TRS1YR + 
-                           TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, 
-                         model = 'random', random.method = 'nerlove', 
-                         data = cfo_data, index = c('YEAR', 'CO_PER_ROL'))
+re_model_cfo <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR + 
+                      SPCODE_new_SP_index, model = 'random',
+                    random.method = 'nerlove', data = cfo_data, 
+                    index = c('YEAR', 'CO_PER_ROL'))
 
-
-
-
-
-                           
-
-
+                      
+                      
+                             
+   
                            
                         
 # 13. CONDUCTING THE HAUSMAN TEST FOR ENDOGENEITY ####
@@ -502,7 +520,7 @@ meaning that our model demonstrates endogeneity.'
 
 # 14. CREATING THE FIXED EFFECT MODEL #####
 
-'In the current session we are going to apply the models taht are going to be
+'In the current session we are going to apply the models that are going to be
 reveal the relation between the returns and the independent variables. Based
 on the paper of yiwei Li and Zeng, with title: The impact of top executive 
 gender on asset prices: Evidence from stock price crach risk.
@@ -534,22 +552,58 @@ Fixed effects model is designed to adress this problem.
 
 
 # fixed effects for CEO
-fixed_ceo_data <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + LAG_TRS1YR + 
-                           TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, 
-                         model = 'within', data = ceo_data,
-                         index = c('YEAR', 'CO_PER_ROL'),effect = "individual")
-summary(fixed_ceo_data)
+fixed_ceo_data <- plm(TRS1YR ~ ROA + AGE + MKTVAL + GENDER_MALE + LAG_TRS1YR + 
+                        SPCODE_new_SP_index, model = 'within', data = ceo_data,
+                      index = c('YEAR', 'CO_PER_ROL'),effect = "individual")
+                         
+
 coeftest(fixed_ceo_data, vcov = vcovHC, type = "HC1")
+
+# ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+fixed_ceo_data_F <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_FEMALE + LAG_TRS1YR + 
+                        SPCODE_new_SP_index, model = 'within', data = ceo_data,
+                      index = c('YEAR', 'CO_PER_ROL'),effect = "individual")
+
+
+coeftest(fixed_ceo_data_F, vcov = vcovHC, type = "HC1")
 
 
 
 # fixed effects for CFO
 fixed_cfo_data <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + LAG_TRS1YR + 
-                        TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, 
-                      model = 'within', data = cfo_data,
+                        SPCODE_new_SP_index, model = 'within', data = cfo_data,
                       index = c('YEAR', 'CO_PER_ROL'),effect = "individual")
-summary(fixed_cfo_data)
+                        
+
 coeftest(fixed_cfo_data, vcov = vcovHC, type = "HC1")
+
+# ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+fixed_cfo_data_F <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_FEMALE + LAG_TRS1YR + 
+                        SPCODE_new_SP_index, model = 'within', data = cfo_data,
+                      index = c('YEAR', 'CO_PER_ROL'),effect = "individual")
+
+
+coeftest(fixed_cfo_data_F, vcov = vcovHC, type = "HC1")
+
+
+# fixed effect for the CEO&CFO data
+fixed_ceo_cfo <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_MALE + LAG_TRS1YR + 
+                       SPCODE_new_SP_index, model = 'within', 
+                     data = ceo_cfo_data, index = c('YEAR', 'CO_PER_ROL'),
+                     effect = "individual")
+
+
+coeftest(fixed_ceo_cfo, vcov = vcovHC, type = "HC1")
+
+# ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+fixed_ceo_cfo_F <- plm(TRS1YR ~ ROA + AGE + PRCC + GENDER_FEMALE + LAG_TRS1YR + 
+                       SPCODE_new_SP_index, model = 'within', 
+                     data = ceo_cfo_data, index = c('YEAR', 'CO_PER_ROL'),
+                     effect = "individual")
+
+
+coeftest(fixed_ceo_cfo_F, vcov = vcovHC, type = "HC1")
+                     
 
 
 
@@ -558,6 +612,9 @@ coeftest(fixed_cfo_data, vcov = vcovHC, type = "HC1")
 
 
 # 15. CREATING THE PROPENSITY SCORE MATCHING ####
+
+
+
 
 '
 We estimate the propensity score by running a logit model (probit also works) 
@@ -574,183 +631,57 @@ the returns will be with the rest of the independent variables.'
 
 
 # FOR THE CEO DATA SET
-propensity_model_ceo <- glm(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
-                              LAG_TRS1YR + TDC2 + SPCODE_EX + SPCODE_MD + 
-                              SPCODE_SM + SPINDEX, family = binomial(), 
-                            data = ceo_data)
-
+pr_model_ceo_BM<- glm(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
+                              LAG_TRS1YR, SPCODE_new_SP_index, 
+                            family = binomial(), data = ceo_data)
+                    
 summary(propensity_model_ceo)
-                              
-'RESULTS OF THE ABOVE COMMAND ARE THE FOLLOWING:
+coeftest(pr_model_ceo_BM, vcov = vcovHC, type = "HC1")
 
-WITHOUT THE SPINDEX
+# ALTERNATIVE WITH THE FEMALE AS THE DUMMY
+pr_model_ceo_fe_bm <- glm(GENDER_FEMALE ~ ROA + AGE + PRCC + TRS1YR +
+                              LAG_TRS1YR, SPCODE_new_SP_index, 
+                            family = binomial(), data = ceo_data)
 
-
-Call:
-glm(formula = GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR + LAG_TRS1YR + 
-    TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, family = binomial(), 
-    data = ceo_data)
-
-Deviance Residuals: 
-    Min       1Q   Median       3Q      Max  
--2.6679   0.2819   0.2908   0.3122   1.5888  
-
-Coefficients:
-              Estimate Std. Error z value Pr(>|z|)    
-(Intercept)  2.860e+00  6.974e-02  41.013  < 2e-16 ***
-ROA         -1.713e-03  7.059e-04  -2.426  0.01526 *  
-AGE          6.056e-03  1.115e-03   5.431 5.59e-08 ***
-PRCC         1.125e-05  3.067e-05   0.367  0.71368    
-TRS1YR       1.609e-04  3.137e-04   0.513  0.60806    
-LAG_TRS1YR  -1.771e-04  1.896e-04  -0.934  0.35025    
-TDC2         5.755e-07  1.549e-06   0.372  0.71017    
-SPCODE_EX    5.068e-03  5.834e-02   0.087  0.93078    
-SPCODE_MD   -1.528e-01  6.969e-02  -2.192  0.02839 *  
-SPCODE_SM   -2.111e-01  6.535e-02  -3.230  0.00124 ** 
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-(Dispersion parameter for binomial family taken to be 1)
-
-    Null deviance: 18421  on 51098  degrees of freedom
-Residual deviance: 18371  on 51089  degrees of freedom
-AIC: 18391
-
-Number of Fisher Scoring iterations: 6
-
-
-
-WITH THE SPINDEX
-
-Call:
-glm(formula = GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR + LAG_TRS1YR + 
-    TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM + SPINDEX, family = binomial(), 
-    data = ceo_data)
-
-Deviance Residuals: 
-    Min       1Q   Median       3Q      Max  
--2.6709   0.2818   0.2909   0.3123   1.6011  
-
-Coefficients:
-              Estimate Std. Error z value Pr(>|z|)    
-(Intercept)  2.894e+00  9.047e-02  31.990  < 2e-16 ***
-ROA         -1.723e-03  7.085e-04  -2.432  0.01500 *  
-AGE          5.999e-03  1.116e-03   5.375 7.67e-08 ***
-PRCC         1.119e-05  3.052e-05   0.367  0.71398    
-TRS1YR       1.573e-04  3.131e-04   0.503  0.61528    
-LAG_TRS1YR  -1.789e-04  1.893e-04  -0.945  0.34474    
-TDC2         5.625e-07  1.535e-06   0.367  0.71393    
-SPCODE_EX    1.189e-03  5.848e-02   0.020  0.98378    
-SPCODE_MD   -1.547e-01  6.971e-02  -2.220  0.02644 *  
-SPCODE_SM   -2.150e-01  6.550e-02  -3.282  0.00103 ** 
-SPINDEX     -8.281e-06  1.630e-05  -0.508  0.61149    
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-(Dispersion parameter for binomial family taken to be 1)
-
-    Null deviance: 18415  on 51096  degrees of freedom
-Residual deviance: 18365  on 51086  degrees of freedom
-  (2 observations deleted due to missingness)
-AIC: 18387
-
-Number of Fisher Scoring iterations: 6
-
-'
-
-
-
-
+summary(pr_model_ceo_fe_bm)
+coeftest(pr_model_ceo_fe_bm, vcov = vcovHC, type = "HC1")
+                            
 
 
 # FOR THE CFO DATASET
-
-propensity_model_cfo <- glm(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
-                              LAG_TRS1YR + TDC2 + SPCODE_EX + SPCODE_MD + 
-                              SPCODE_SM + SPINDEX, family = binomial(), 
-                            data = cfo_data)
-
+pr_model_cfo_bm <- glm(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
+                              LAG_TRS1YR + SPCODE_new_SP_index, 
+                            family = binomial(), data = cfo_data)
+                            
 summary(propensity_model_cfo)
+coeftest(pr_model_cfo_bm, vcov = vcovHC, type = "HC1")
 
-# THE RESULTS OF THE ABOVE MODEL ARE THE FOLLOWING:
+# ALTERNATIVE WITH THE FEMALE AS THE DUMMY
+pr_model_cfo_f_bm <- glm(GENDER_FEMALE ~ ROA + AGE + PRCC + TRS1YR +
+                              LAG_TRS1YR + SPCODE_new_SP_index, 
+                            family = binomial(), data = cfo_data)
 
-'
-WITHOUT THE SPINDEX:
-
-
-Call:
-glm(formula = GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR + LAG_TRS1YR + 
-    TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, family = binomial(), 
-    data = cfo_data)
-
-Deviance Residuals: 
-    Min       1Q   Median       3Q      Max  
--2.7906   0.3319   0.3690   0.3923   2.3087  
-
-Coefficients:
-              Estimate Std. Error z value Pr(>|z|)    
-(Intercept)  2.208e+00  8.307e-02  26.576  < 2e-16 ***
-ROA         -4.970e-03  1.608e-03  -3.091 0.001997 ** 
-AGE          6.465e-03  1.414e-03   4.573 4.82e-06 ***
-PRCC         2.162e-05  3.018e-05   0.716 0.473837    
-TRS1YR      -1.294e-04  2.278e-04  -0.568 0.569895    
-LAG_TRS1YR  -3.221e-05  2.529e-04  -0.127 0.898648    
-TDC2         1.627e-05  4.831e-06   3.368 0.000757 ***
-SPCODE_EX    2.800e-01  6.373e-02   4.394 1.11e-05 ***
-SPCODE_MD    1.776e-04  7.275e-02   0.002 0.998052    
-SPCODE_SM   -5.548e-02  6.897e-02  -0.804 0.421132    
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-(Dispersion parameter for binomial family taken to be 1)
-
-    Null deviance: 14824  on 30510  degrees of freedom
-Residual deviance: 14727  on 30501  degrees of freedom
-  (1 observation deleted due to missingness)
-AIC: 14747
-
-Number of Fisher Scoring iterations: 6
+summary(pr_model_cfo_f_bm)
+coeftest(pr_model_cfo_f_bm, vcov = vcovHC, type = "HC1")
 
 
-WITH THE SPINDEX:
-
-Call:
-glm(formula = GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR + LAG_TRS1YR + 
-    TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM + SPINDEX, family = binomial(), 
-    data = cfo_data)
-
-Deviance Residuals: 
-    Min       1Q   Median       3Q      Max  
--2.8225   0.3306   0.3652   0.3926   2.4503  
-
-Coefficients:
-              Estimate Std. Error z value Pr(>|z|)    
-(Intercept)  2.395e+00  1.025e-01  23.362  < 2e-16 ***
-ROA         -5.210e-03  1.662e-03  -3.135 0.001720 ** 
-AGE          6.562e-03  1.415e-03   4.637 3.54e-06 ***
-PRCC         2.151e-05  2.959e-05   0.727 0.467318    
-TRS1YR      -1.348e-04  2.284e-04  -0.590 0.555151    
-LAG_TRS1YR  -3.657e-05  2.547e-04  -0.144 0.885854    
-TDC2         1.581e-05  4.804e-06   3.291 0.000999 ***
-SPCODE_EX    2.692e-01  6.382e-02   4.219 2.46e-05 ***
-SPCODE_MD    7.225e-04  7.276e-02   0.010 0.992078    
-SPCODE_SM   -6.818e-02  6.909e-02  -0.987 0.323722    
-SPINDEX     -5.452e-05  1.725e-05  -3.160 0.001577 ** 
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-(Dispersion parameter for binomial family taken to be 1)
-
-    Null deviance: 14824  on 30510  degrees of freedom
-Residual deviance: 14717  on 30500  degrees of freedom
-  (1 observation deleted due to missingness)
-AIC: 14739
-
-Number of Fisher Scoring iterations: 6
 
 
-'
+# for the ceo_cfo data
+propensity_ceo_cfo_bm <- glm(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
+                            LAG_TRS1YR + SPCODE_new_SP_index, 
+                          family = binomial(), data = ceo_cfo_data)
+summary(propensity_ceo_cfo_bm)
 
+
+# ALTERNATIVE WITH THE FEMALE AS THE DUMMY
+
+
+propensity_ceo_cfo_F_bm <- glm(GENDER_FEMALE ~ ROA + AGE + PRCC + TRS1YR +
+                            LAG_TRS1YR + SPCODE_new_SP_index, 
+                          family = binomial(), data = ceo_cfo_data)
+summary(propensity_ceo_cfo_F)
+coeftest(propensity_ceo_cfo_F_bm, vcov = vcovHC, type = "HC1")
 
 
 # EXECUTING  A MATCING ALGORITHM
@@ -773,8 +704,7 @@ choice ("nearest" in this case).'
 
 
 # set the covariates of the models
-cov <- c('ROA', 'AGE', 'PRCC','LAG_TRS1YR','TDC2','SPCODE_EX',
-         'SPCODE_MD', 'SPCODE_SM', 'SPINDEX')
+cov <- c('ROA', 'AGE', 'MKTVAL','LAG_TRS1YR','SPCODE_new_SP_index')
 
 # FOR THE CEO DATA 
 ceo_data_nomiss <- ceo_data %>%  # MatchIt does not allow missing values
@@ -782,13 +712,32 @@ ceo_data_nomiss <- ceo_data %>%  # MatchIt does not allow missing values
   na.omit()
 
 # without the spindex
-ceo_data_match <- matchit(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
-                            LAG_TRS1YR + TDC2 + SPCODE_EX + SPCODE_MD + 
-                            SPCODE_SM, method = "nearest", 
+ceo_data_match <- matchit(GENDER_MALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                            LAG_TRS1YR + SPCODE_new_SP_index , method = "nearest",
+                          distance = 'glm', ratio = 1, replace = FALSE, 
                           data = ceo_data_nomiss )
 #matching the data
 ceo_dta_m <- match.data(ceo_data_match)
 dim(ceo_dta_m)
+
+
+# ALTERNATIVE DATA WITH THE FEMALE AS THE DUMMY
+ceo_data_nomiss_F <- ceo_data %>%  # MatchIt does not allow missing values
+  select('TRS1YR', 'GENDER_FEMALE', one_of(cov)) %>%
+  na.omit()
+
+ceo_data_match_F <- matchit(GENDER_FEMALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                            LAG_TRS1YR + SPCODE_new_SP_index , method = "nearest",
+                          distance = 'glm', ratio = 1, replace = FALSE, 
+                          data = ceo_data_nomiss_F )
+#matching the data
+ceo_dta_m_F <- match.data(ceo_data_match_F)
+dim(ceo_dta_m_F)
+
+
+
+# THE RESULTS INDICATED HERE THAT WE HAVE 4490 OBSERVATIONS, MEANING THAT WE 
+# HAVE 4490/2 PAIRS
 
 
 # FOR THE CFO DATA SET
@@ -796,9 +745,10 @@ cfo_data_nomiss <- cfo_data %>%
   select('TRS1YR', 'GENDER_MALE', one_of(cov)) %>%
   na.omit()
 
-cfo_data_match <- matchit(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
-                            LAG_TRS1YR + TDC2 + SPCODE_EX + SPCODE_MD + 
-                            SPCODE_SM, method = "nearest", 
+cfo_data_match <- matchit(GENDER_MALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                            LAG_TRS1YR + SPCODE_new_SP_index, 
+                          method = "nearest", distance = 'glm', ratio = 1, 
+                          replace = FALSE,
                           data = cfo_data_nomiss )
 
 # matching the data
@@ -806,94 +756,118 @@ cfo_dta_m <- match.data(cfo_data_match)
 dim(cfo_dta_m)
 
 
+# WITH THE FEMALE AS THE DUMMY VARIABLE
+cfo_data_nomiss_F <- cfo_data %>%
+  select('TRS1YR', 'GENDER_FEMALE', one_of(cov)) %>%
+  na.omit()
+
+cfo_data_match_F <- matchit(GENDER_FEMALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                            LAG_TRS1YR + SPCODE_new_SP_index, 
+                          method = "nearest", distance = 'glm', ratio = 1, 
+                          replace = FALSE,
+                          data = cfo_data_nomiss_F )
+
+# matching the data
+cfo_dta_m_F <- match.data(cfo_data_match_F)
+dim(cfo_dta_m_F)
+
+# CEO CFO MODEL
+ceo_cfo_data_nomiss_M <- ceo_cfo_data %>%
+  select('TRS1YR', 'GENDER_MALE', one_of(cov)) %>%
+  na.omit()
+
+ceo_cfo_data_match_M <- matchit(GENDER_MALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                                LAG_TRS1YR + SPCODE_new_SP_index, 
+                              method = "nearest", distance = 'glm', ratio = 1, 
+                              replace = FALSE,
+                              data = ceo_cfo_data_nomiss_M)
+
+# matching the data
+ceo_cfo_dta <- match.data(ceo_cfo_data_match_M)
+dim(ceo_cfo_dta)
+
+
+
+
+# ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+ceo_cfo_data_nomiss <- ceo_cfo_data %>%
+  select('TRS1YR', 'GENDER_FEMALE', one_of(cov)) %>%
+  na.omit()
+
+ceo_cfo_data_match <- matchit(GENDER_FEMALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                            LAG_TRS1YR + SPCODE_new_SP_index, 
+                          method = "nearest", distance = 'glm', ratio = 1, 
+                          replace = FALSE,
+                          data = ceo_cfo_data_nomiss )
+
+# matching the data
+ceo_cfo_dta_m <- match.data(ceo_cfo_data_match)
+dim(ceo_cfo_dta_m)
+
+# FOR THE CURRENT DATASET WE HAVE 4024 OBSERVATIONS, MEANING 4024/2 PAIRS.
+
+
 # AFTER THE MATCHING
 
-
-
 # FOR THE CEO DATA SET
-propensity_model_ceo_AM <- glm(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
-                              LAG_TRS1YR + TDC2 + SPCODE_EX + SPCODE_MD + 
-                              SPCODE_SM, family = binomial(), 
-                            data = ceo_dta_m)
-
+propensity_model_ceo_AM <- glm(GENDER_MALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                                 LAG_TRS1YR + SPCODE_new_SP_index,
+                               family = binomial(), data = ceo_dta_m)
 summary(propensity_model_ceo_AM)
-
-'RESULTS OF THE ABOVE COMMAND
-Call:
-glm(formula = GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR + LAG_TRS1YR + 
-    TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, family = binomial(), 
-    data = ceo_dta_m)
-
-Deviance Residuals: 
-    Min       1Q   Median       3Q      Max  
--7.5331  -0.0010   0.0000   0.1265   1.2808  
-
-Coefficients:
-              Estimate Std. Error z value Pr(>|z|)    
-(Intercept) -4.355e+01  2.339e+00 -18.618  < 2e-16 ***
-ROA         -1.753e-01  9.757e-03 -17.966  < 2e-16 ***
-AGE          6.791e-01  3.545e-02  19.155  < 2e-16 ***
-PRCC         5.052e-03  1.876e-03   2.694  0.00707 ** 
-TRS1YR       1.520e-02  1.059e-03  14.355  < 2e-16 ***
-LAG_TRS1YR  -1.834e-02  2.924e-03  -6.272 3.56e-10 ***
-TDC2         5.154e-05  4.782e-06  10.777  < 2e-16 ***
-SPCODE_EX    8.549e-01  2.810e-01   3.042  0.00235 ** 
-SPCODE_MD   -1.636e+01  1.362e+00 -12.010  < 2e-16 ***
-SPCODE_SM   -2.294e+01  1.922e+00 -11.933  < 2e-16 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-(Dispersion parameter for binomial family taken to be 1)
-
-    Null deviance: 6221.69  on 4487  degrees of freedom
-Residual deviance:  651.56  on 4478  degrees of freedom
-AIC: 671.56
-
-Number of Fisher Scoring iterations: 25'
+coeftest(propensity_model_ceo_AM, vcov = vcovHC, type = "HC1")
 
 
+
+# ALTERNATIVE WITH THE FEMALE AS THE DUMMY
+propensity_model_ceo_AM_F <- glm(GENDER_FEMALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                                 LAG_TRS1YR + SPCODE_new_SP_index,
+                               family = binomial(), data = ceo_dta_m_F)
+summary(propensity_model_ceo_AM_F)
+coeftest(propensity_model_ceo_AM_F, vcov = vcovHC, type = "HC1")
+                      
 
 
 # FOR THE CFO DATA SET
-propensity_model_cfo_AM <- glm(GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR +
-                                 LAG_TRS1YR + TDC2 + SPCODE_EX + SPCODE_MD + 
-                                 SPCODE_SM, family = binomial(), 
+propensity_model_cfo_AM <- glm(GENDER_MALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                                 LAG_TRS1YR + SPCODE_new_SP_index,
+                               family = binomial(), 
                                data = cfo_dta_m)
 
 summary(propensity_model_cfo_AM)
+coeftest(propensity_model_cfo_AM, vcov = vcovHC, type = "HC1")
 
-'RESULTS OF THE ABOVE COMMAND:
 
-Call:
-glm(formula = GENDER_MALE ~ ROA + AGE + PRCC + TRS1YR + LAG_TRS1YR + 
-    TDC2 + SPCODE_EX + SPCODE_MD + SPCODE_SM, family = binomial(), 
-    data = cfo_dta_m)
+# ALTERNATIVE FOR THE CFO DATA WITH THE FEMALE AS THE DUMMY
+propensity_model_cfo_AM_F <- glm(GENDER_FEMALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                                 LAG_TRS1YR + SPCODE_new_SP_index,
+                               family = binomial(), 
+                               data = cfo_dta_m_F)
 
-Deviance Residuals: 
-    Min       1Q   Median       3Q      Max  
--7.2502  -0.0146   0.0000   0.2469   1.2319  
+summary(propensity_model_cfo_AM_F)
+coeftest(propensity_model_cfo_AM_F, vcov = vcovHC, type = "HC1")
 
-Coefficients:
-              Estimate Std. Error z value Pr(>|z|)    
-(Intercept) -2.186e+01  1.083e+00 -20.186  < 2e-16 ***
-ROA         -1.394e-01  7.340e-03 -18.986  < 2e-16 ***
-AGE          2.278e-01  1.283e-02  17.762  < 2e-16 ***
-PRCC         3.604e-04  6.447e-05   5.591 2.26e-08 ***
-TRS1YR      -3.844e-03  1.693e-03  -2.270   0.0232 *  
-LAG_TRS1YR  -4.344e-04  1.359e-03  -0.320   0.7493    
-TDC2         3.942e-04  1.929e-05  20.436  < 2e-16 ***
-SPCODE_EX    7.014e+00  4.481e-01  15.652  < 2e-16 ***
-SPCODE_MD   -6.587e-01  8.232e-01  -0.800   0.4236    
-SPCODE_SM   -3.267e-01  1.489e+00  -0.219   0.8263    
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-(Dispersion parameter for binomial family taken to be 1)
+# FOR THE CEO CFO DATASET
+propensity_model_ceo_cfo_AM_M <- glm(GENDER_MALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                                     LAG_TRS1YR + SPCODE_new_SP_index,
+                                   family = binomial(), 
+                                   data = ceo_cfo_dta)
 
-    Null deviance: 5575.7  on 4021  degrees of freedom
-Residual deviance: 1140.8  on 4012  degrees of freedom
-AIC: 1160.8
+summary(propensity_model_ceo_cfo_AM_M)
+coeftest(propensity_model_ceo_cfo_AM_M, vcov = vcovHC, type = "HC1")
 
-Number of Fisher Scoring iterations: 11
-'
+
+
+
+
+# ALTERNATIVE MODEL WITH THE FEMALE AS THE DUMMY
+propensity_model_ceo_cfo_AM_F <- glm(GENDER_FEMALE ~ ROA + AGE + MKTVAL + TRS1YR +
+                                 LAG_TRS1YR + SPCODE_new_SP_index,
+                               family = binomial(), 
+                               data = ceo_cfo_dta_m)
+
+summary(propensity_model_ceo_cfo_AM_F)
+coeftest(propensity_model_ceo_cfo_AM_F, vcov = vcovHC, type = "HC1")
+
+
   
